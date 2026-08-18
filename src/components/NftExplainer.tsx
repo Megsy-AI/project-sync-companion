@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import coverAsset from "@/assets/nft-cover.png.asset.json";
 
 const POINTS = [
   "Every NFT you buy is minted straight to your TON wallet.",
@@ -16,7 +15,7 @@ const NftExplainer = () => (
     className="paper-card mb-5 overflow-hidden p-0"
   >
     <img
-      src={coverAsset.url}
+      src="/images/nft-cover.png"
       alt="Collection artwork preview"
       className="h-36 w-full object-cover"
       loading="lazy"

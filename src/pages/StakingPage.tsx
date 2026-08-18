@@ -35,7 +35,7 @@ import {
 } from "@/lib/staking-api";
 
 const GRAM_ICON = "/images/gram-icon.png";
-const NOVA_ICON = "/__l5e/assets-v1/b2c8b946-4297-402b-a232-3a4c76b03893/nova-icon.jpg";
+const NOVA_ICON = "/images/nova-icon.jpg";
 
 const fmt = (n: number, d = 4) =>
   Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: d });
