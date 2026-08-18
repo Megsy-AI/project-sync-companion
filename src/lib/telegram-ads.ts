@@ -1,5 +1,5 @@
 // Ads helper: RichAds (https://richads.com/publishers/telegram) only.
-// Rewarded video formats, highest-paying first, loaded and shown on demand.
+// Rewarded/interstitial video first (highest paying), loaded and shown on demand.
 // Nothing is loaded until the user taps "Watch", so no auto banners or push ads.
 
 const RICHADS_SDK = "https://richinfo.co/richpartners/telegram/js/tg-ob.js";
@@ -13,6 +13,9 @@ const RICHADS_APP_ID =
   (import.meta.env.VITE_RICHADS_APP_ID as string | undefined) ||
   ((window as any).RICHADS_APP_ID as string | undefined) ||
   "8586";
+
+/** Last failure reason, surfaced in the UI so problems are diagnosable. */
+export let lastAdError = "";
 
 const scriptCache = new Map<string, Promise<boolean>>();
 
@@ -40,80 +43,82 @@ const loadScript = (src: string): Promise<boolean> => {
 export const isAdsReady = () => true;
 
 let richController: any = null;
+let initialised = false;
 
-/** Collect every callable member, including prototype methods (SDK is minified). */
-const listMethods = (obj: any): string[] => {
-  const out = new Set<string>();
-  let proto = obj;
-  while (proto && proto !== Object.prototype) {
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      if (name === "constructor") continue;
-      try {
-        if (typeof obj[name] === "function") out.add(name);
-      } catch {
-        /* getters may throw */
-      }
-    }
-    proto = Object.getPrototypeOf(proto);
-  }
-  return [...out];
-};
+/** The SDK reads the Telegram user itself; it only works inside Telegram. */
+const telegramReady = (): boolean =>
+  !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user?.id;
 
-/** Highest-paying formats first: rewarded video > video > rewarded > interstitial > native. */
-const score = (name: string): number => {
-  const n = name.toLowerCase();
-  if (!n.startsWith("trigger")) return -1;
-  let s = 0;
-  if (n.includes("video")) s += 4;
-  if (n.includes("reward")) s += 3;
-  if (n.includes("interstitial")) s += 2;
-  if (n.includes("native") || n.includes("notification")) s += 1;
-  return s;
-};
+/** Highest-paying formats first: video > mixed > banner > native notification. */
+const AD_METHODS = [
+  "triggerInterstitialVideo",
+  "triggerInterstitialMixed",
+  "triggerInterstitialBanner",
+  "triggerNativeNotification",
+];
 
-const getRichController = async () => {
-  if (richController) return richController;
+const getRichController = async (): Promise<any> => {
+  if (richController && initialised) return richController;
+
   const loaded = await loadScript(RICHADS_SDK);
-  if (!loaded) return null;
+  if (!loaded) {
+    lastAdError = "SDK failed to load";
+    return null;
+  }
+
   const Ctor = (window as any).TelegramAdsController;
-  if (typeof Ctor !== "function") return null;
+  if (typeof Ctor !== "function") {
+    lastAdError = "SDK unavailable";
+    return null;
+  }
+
+  if (!telegramReady()) {
+    lastAdError = "Ads only work inside Telegram";
+    return null;
+  }
+
   try {
-    const controller = new Ctor();
-    controller.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
-    // initialize() fetches the publisher config asynchronously; give it a
-    // moment so the first tap on "Watch" already has ads available.
-    for (let i = 0; i < 20; i++) {
-      if (controller.publisherInfo?.publisher_id) break;
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    richController = controller;
+    (window as any).Telegram?.WebApp?.ready?.();
   } catch {
-    richController = null;
+    /* ignore */
+  }
+
+  if (!richController) richController = new Ctor();
+
+  try {
+    // initialize() resolves once the publisher configuration is fetched.
+    await richController.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
+    initialised = true;
+  } catch (e: any) {
+    initialised = false;
+    lastAdError = `init: ${e?.message ?? "failed"}`;
+    return null;
   }
 
   return richController;
 };
 
 /**
- * Shows exactly one RichAds rewarded ad, only when called from a user action
- * (the "Watch" button). Tries every available format, highest paying first.
+ * Shows exactly one RichAds ad, only when called from a user action
+ * (the "Watch" button). Tries every format, highest paying first.
  */
 export const showAd = async (): Promise<boolean> => {
+  lastAdError = "";
   const controller = await getRichController();
   if (!controller) return false;
 
-  const methods = listMethods(controller)
-    .filter((m) => score(m) > 0)
-    .sort((a, b) => score(b) - score(a));
-
-  for (const method of methods) {
+  for (const method of AD_METHODS) {
+    const fn = controller[method];
+    if (typeof fn !== "function") continue;
     try {
-      const res = await controller[method]();
+      const res = await fn.call(controller);
       if (res === false) continue;
       return true;
-    } catch {
+    } catch (e: any) {
+      lastAdError = `${method}: ${e?.message ?? "no fill"}`;
       // no fill for this format, try the next one
     }
   }
+  if (!lastAdError) lastAdError = "No fill";
   return false;
 };
