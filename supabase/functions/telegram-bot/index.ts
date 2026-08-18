@@ -948,8 +948,8 @@ async function runAutoNotifications(supabase: any, BASE_URL: string) {
     await Promise.all(chunk.map(async (p: any) => {
       const topic: NotificationTopic = mining.has(p.id) ? "ai" : Math.random() < 0.7 ? "mining" : "ai";
       const text = buildNotification(topic, p.first_name);
-      const buttonText = topic === "mining" ? "⛏️ Start Mining" : "🤖 Open Nova AI";
-      const url = topic === "mining" ? APP_URL : `${APP_URL}/ai`;
+      const buttonText = topic === "mining" ? "Start Mining" : "Open Nova AI";
+      const url = "https://t.me/Noveaibot/App";
       try {
         const res = await fetch(`${BASE_URL}/sendMessage`, {
           method: "POST",
