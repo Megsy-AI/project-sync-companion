@@ -45,7 +45,11 @@ const AdWatchTask = () => {
     try {
       const shown = await showAd();
       if (!shown) {
-        toast({ title: "No ad available", description: "Try again in a moment", variant: "destructive" });
+        toast({
+          title: "No ad available",
+          description: lastAdError || "Try again in a moment",
+          variant: "destructive",
+        });
         return;
       }
       const res = await incrementAdWatchForTelegram(user.telegramUser.id, tier);
