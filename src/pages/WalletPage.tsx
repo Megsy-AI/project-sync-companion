@@ -16,8 +16,7 @@ import { payWithStars, STARS_PRICES, type StarsProductId } from "@/lib/stars";
 import TelegramStar from "@/components/TelegramStar";
 import { useCoinPrices, formatUsd } from "@/hooks/use-coin-prices";
 
-import novaIconAsset from "@/assets/nova-icon.jpg.asset.json";
-const NOVA_ICON = novaIconAsset.url;
+const NOVA_ICON = "/images/nova-icon.jpg";
 
 
 const TON_ICON = "/images/gram-icon.png";

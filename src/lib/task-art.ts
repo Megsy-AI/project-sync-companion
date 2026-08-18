@@ -1,4 +1,2 @@
-import novaIcon from "@/assets/nova-icon.jpg.asset.json";
-
-/** Single, clean mark used for every task thumbnail. */
-export const artForTask = (_title: string): string => novaIcon.url;
+/** Single, clean mark used for every task thumbnail. Served from public/ so it never breaks on deploy. */
+export const artForTask = (_title: string): string => "/images/nova-icon.jpg";
