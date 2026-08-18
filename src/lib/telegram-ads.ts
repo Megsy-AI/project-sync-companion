@@ -2,14 +2,6 @@
 // Rewarded video formats, highest-paying first, loaded and shown on demand.
 // Nothing is loaded until the user taps "Watch", so no auto banners or push ads.
 
-// Highest-paying rewarded formats first, cheaper fallbacks after.
-const AD_METHODS = [
-  "triggerRewardedVideo",
-  "triggerRewardedVideoAd",
-  "triggerRewardedInterstitial",
-  "triggerInterstitial",
-] as const;
-
 const RICHADS_SDK = "https://richinfo.co/richpartners/telegram/js/tg-ob.js";
 
 const RICHADS_PUB_ID =
@@ -49,6 +41,36 @@ export const isAdsReady = () => true;
 
 let richController: any = null;
 
+/** Collect every callable member, including prototype methods (SDK is minified). */
+const listMethods = (obj: any): string[] => {
+  const out = new Set<string>();
+  let proto = obj;
+  while (proto && proto !== Object.prototype) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name === "constructor") continue;
+      try {
+        if (typeof obj[name] === "function") out.add(name);
+      } catch {
+        /* getters may throw */
+      }
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+  return [...out];
+};
+
+/** Highest-paying formats first: rewarded video > video > rewarded > interstitial > native. */
+const score = (name: string): number => {
+  const n = name.toLowerCase();
+  if (!n.startsWith("trigger")) return -1;
+  let s = 0;
+  if (n.includes("video")) s += 4;
+  if (n.includes("reward")) s += 3;
+  if (n.includes("interstitial")) s += 2;
+  if (n.includes("native") || n.includes("notification")) s += 1;
+  return s;
+};
+
 const getRichController = async () => {
   if (richController) return richController;
   const loaded = await loadScript(RICHADS_SDK);
@@ -57,7 +79,20 @@ const getRichController = async () => {
   if (typeof Ctor !== "function") return null;
   try {
     const controller = new Ctor();
-    controller.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
+    // The SDK has shipped both signatures; call the object form first,
+    // then the positional one if the ids did not stick.
+    try {
+      controller.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
+    } catch {
+      /* fall through */
+    }
+    if (!controller.pubId) {
+      try {
+        controller.initialize(RICHADS_PUB_ID, RICHADS_APP_ID);
+      } catch {
+        /* ignore */
+      }
+    }
     richController = controller;
   } catch {
     richController = null;
@@ -66,16 +101,18 @@ const getRichController = async () => {
 };
 
 /**
- * Shows exactly one RichAds rewarded video, only when called from a user action
- * (the "Watch" button). Falls back through the remaining rewarded formats when
- * no video is currently available.
+ * Shows exactly one RichAds rewarded ad, only when called from a user action
+ * (the "Watch" button). Tries every available format, highest paying first.
  */
 export const showAd = async (): Promise<boolean> => {
   const controller = await getRichController();
   if (!controller) return false;
 
-  for (const method of AD_METHODS) {
-    if (typeof controller[method] !== "function") continue;
+  const methods = listMethods(controller)
+    .filter((m) => score(m) > 0)
+    .sort((a, b) => score(b) - score(a));
+
+  for (const method of methods) {
     try {
       const res = await controller[method]();
       if (res === false) continue;
