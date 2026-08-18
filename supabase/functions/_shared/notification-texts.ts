@@ -147,6 +147,16 @@ export const variantCount = (topic: NotificationTopic): number => {
 
 export const totalVariants = (): number => variantCount("mining") + variantCount("ai");
 
+/** Removes emoji / pictographs and tidies the leftover spacing. */
+const stripEmoji = (s: string): string =>
+  s
+    .replace(
+      /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{20E3}\u{200D}]/gu,
+      "",
+    )
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/^[ \t]+|[ \t]+$/gm, "");
+
 /** Deterministic-free random pick of a unique combination. */
 export const buildNotification = (topic: NotificationTopic, name: string): string => {
   const p = POOLS[topic];
@@ -154,5 +164,10 @@ export const buildNotification = (topic: NotificationTopic, name: string): strin
   const body = p.bodies[Math.floor(Math.random() * p.bodies.length)];
   const closer = p.closers[Math.floor(Math.random() * p.closers.length)];
   const safeName = (name || "Miner").replace(/[<>&]/g, "").slice(0, 32);
-  return `${opener}\n\n${body}\n\n${closer}`.replace(/\{name\}/g, `<b>${safeName}</b>`);
+  const text = stripEmoji(`${opener}\n\n${body}\n\n${closer}`).replace(/\{name\}/g, safeName);
+  // Everything is bold, no emoji.
+  return text
+    .split("\n\n")
+    .map((part) => `<b>${part}</b>`)
+    .join("\n\n");
 };
