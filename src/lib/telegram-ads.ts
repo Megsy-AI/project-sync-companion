@@ -79,24 +79,18 @@ const getRichController = async () => {
   if (typeof Ctor !== "function") return null;
   try {
     const controller = new Ctor();
-    // The SDK has shipped both signatures; call the object form first,
-    // then the positional one if the ids did not stick.
-    try {
-      controller.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
-    } catch {
-      /* fall through */
-    }
-    if (!controller.pubId) {
-      try {
-        controller.initialize(RICHADS_PUB_ID, RICHADS_APP_ID);
-      } catch {
-        /* ignore */
-      }
+    controller.initialize({ pubId: RICHADS_PUB_ID, appId: RICHADS_APP_ID });
+    // initialize() fetches the publisher config asynchronously; give it a
+    // moment so the first tap on "Watch" already has ads available.
+    for (let i = 0; i < 20; i++) {
+      if (controller.publisherInfo?.publisher_id) break;
+      await new Promise((r) => setTimeout(r, 150));
     }
     richController = controller;
   } catch {
     richController = null;
   }
+
   return richController;
 };
 
