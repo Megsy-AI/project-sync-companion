@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { PlayCircle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
-import { showAd } from "@/lib/telegram-ads";
+import { showAd, lastAdError } from "@/lib/telegram-ads";
 import {
   AD_TASK_GOAL,
   AD_TASK_GOAL_B,
